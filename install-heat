@@ -1,0 +1,157 @@
+#!/bin/bash
+
+set -e
+
+DATABASE_PASSWORD="moofoo"
+RABBITMQ_PASSWORD="notset"
+REGION="az-1.region-a.geo-1"
+AUTH_URL="https://region-a.geo-1.identity.hpcloudsvc.com:35357/v2.0/"
+
+echo " * Fetching necessary information..."
+PUBLIC_IP="$(curl http://169.254.169.254/latest/meta-data/public-ipv4 2> /dev/null)"
+
+echo " * Preseeding mysql server configuration..."
+cat << MYSQL_PRESEED | sudo debconf-set-selections
+mysql-server mysql-server/root_password password ${DATABASE_PASSWORD}
+mysql-server mysql-server/root_password_again password ${DATABASE_PASSWORD}
+mysql-server mysql-server/start_on_boot boolean true
+MYSQL_PRESEED
+
+echo " * Installing packages including rabbitmq-server and mysql-server..."
+sudo apt-get --quiet --assume-yes install \
+ python-setuptools \
+ python-eventlet \
+ python-greenlet \
+ python-httplib2 \
+ python-iso8601 \
+ python-lxml \
+ python-sqlalchemy \
+ python-paste \
+ python-routes \
+ python-webob \
+ python-yaml \
+ python-mysqldb \
+ python-dev \
+ python-pip \
+ git-core \
+ python-setuptools \
+ gcc \
+ libc6-dev \
+ libxml2-dev \
+ libxslt-dev \
+ libz-dev \
+ python-prettytable \
+ mysql-server \
+ rabbitmq-server
+
+echo " * Updating rabbitmq password..."
+sudo rabbitmqctl change_password guest "${RABBITMQ_PASSWORD}"
+
+echo " * Downloading heat..."
+git clone --quiet git://github.com/openstack/heat.git
+cd heat
+echo " * Installing additional python dependencies..."
+sudo pip install --quiet -r tools/pip-requires
+echo " * Installing heat package in 'developer mode'..."
+sudo python setup.py develop --quiet
+sudo pip install --quiet python-heatclient
+
+echo " * Patching heat to run against HP Cloud..."
+git apply << EOF
+diff --git a/heat/common/auth_password.py b/heat/common/auth_password.py
+index bcc9799..0d354ca 100644
+--- a/heat/common/auth_password.py
++++ b/heat/common/auth_password.py
+@@ -74,7 +74,7 @@ class KeystonePasswordAuthProtocol(object):
+         tenant_id = token_info['token']['tenant']['id']
+         tenant_name = token_info['token']['tenant']['name']
+         user_id = token_info['user']['id']
+-        user_name = token_info['user']['username']
++        user_name = token_info['user']['name']
+         roles = ','.join(
+             [role['name'] for role in token_info['user']['roles']])
+         service_catalog = token_info['serviceCatalog']
+diff --git a/heat/engine/resources/instance.py b/heat/engine/resources/instance.py
+index 883be60..8578e96 100644
+--- a/heat/engine/resources/instance.py
++++ b/heat/engine/resources/instance.py
+@@ -114,6 +114,10 @@ class Instance(resource.Resource):
+     update_allowed_keys = ('Metadata',)
+ 
+     _deferred_server_statuses = ['BUILD',
++                                 'BUILD(scheduling)',
++                                 'BUILD(networking)',
++                                 'BUILD(block_device_mapping)',
++                                 'BUILD(spawning)',
+                                  'HARD_REBOOT',
+                                  'PASSWORD',
+                                  'REBOOT',
+diff --git a/heat/engine/clients.py b/heat/engine/clients.py
+index 31f418a..021024a 100644
+--- a/heat/engine/clients.py
++++ b/heat/engine/clients.py
+@@ -43,7 +43,10 @@ except ImportError:
+ cloud_opts = [
+     cfg.StrOpt('cloud_backend',
+                default=None,
+-               help="Cloud module to use as a backend. Defaults to OpenStack.")
++               help="Cloud module to use as a backend. Defaults to OpenStack."),
++    cfg.StrOpt('region',
++               default=None,
++               help="Use only this region if specified.")
+ ]
+ cfg.CONF.register_opts(cloud_opts)
+ 
+@@ -80,6 +83,7 @@ class OpenStackClients(object):
+             'project_id': con.tenant,
+             'auth_url': con.auth_url,
+             'service_type': service_type,
++            'region_name': cfg.CONF.region,
+         }
+ 
+         if con.password is not None:
+EOF
+
+echo " * Installing heat configuration files into '/etc/heat/'..."
+sudo cp -r etc/heat /etc/
+sudo chown -R `whoami` /etc/heat
+
+echo " * Updating heat configuration files..."
+sed -i "/^rpc_backend\b/ s/impl_qpid/impl_kombu/" /etc/heat/*
+sed -i "/^rpc_backend/a rabbit_password=${RABBITMQ_PASSWORD}" /etc/heat/*
+sed -i "/^\[DEFAULT\]/a region=${REGION}" /etc/heat/heat-engine.conf
+sed -i "s/%ENCRYPTION_KEY%/`hexdump -n 16 -v -e '/1 "%02x"' /dev/random`/" /etc/heat/heat-engine.conf
+sed -i "/^heat_/ s#127.0.0.1#${PUBLIC_IP}#" /etc/heat/heat-engine.conf
+sed -i "s#auth_uri\b.*#auth_uri\=${AUTH_URL}#" /etc/heat/*
+cat >> /etc/heat/heat-api.conf << EOF
+[paste_deploy]
+flavor = standalone
+EOF
+
+echo " * Setting up heat database..."
+sudo bin/heat-db-setup deb -r "${DATABASE_PASSWORD}"
+
+echo " * Creating log directory at '/var/log/heat/'..."
+sudo mkdir -p /var/log/heat/
+sudo chown `whoami` /var/log/heat
+
+echo
+echo "Now starting heat in the background..."
+heat-engine &
+heat-api &
+echo
+echo "To take full advantage of heat, having an image with heat-cfntools is"
+echo "important. You can either create an image with it included and ask"
+echo "support to upload it for you OR more easily you can boot an instace,"
+echo "pip install heat-cfntools, and then create a snapshot from the running"
+echo "instance."
+echo
+echo "Unfortunately, the example heat templates will not work with hpcloud due"
+echo "to not having the instace flavours or images they expect. They can"
+echo "however be easily updated to work successfully."
+echo
+echo "To see what patches have been applied to make heat work with hpcloud,"
+echo "you can run 'git diff'."
+echo
+echo "To access heat, export HEAT_URL=http://${PUBLIC_IP}:8004/v1/\${OS_TENANT_ID}"
+echo

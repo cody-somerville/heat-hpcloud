@@ -1,0 +1,141 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+  "Description" : "This template creates an instance running wordpress.",
+
+  "Parameters" : {
+    "KeyName" : {
+      "Description" : "Name of an existing KeyPair to enable SSH access to the instance",
+      "Type" : "String"
+    },
+    "InstanceType" : {
+      "Description" : "WebServer EC2 instance type",
+      "Type" : "String",
+      "Default" : "standard.small",
+      "AllowedValues" : [ "standard.xsmall", "standard.small", "standard.medium", "standard.large", "standard.xlarge", "standard.2xlarge" ],
+      "ConstraintDescription" : "must be a valid HPCloud instance type."
+    },
+    "DBName": {
+      "Default": "wordpress",
+      "Description" : "The WordPress database name",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "64",
+      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription" : "must begin with a letter and contain only alphanumeric characters."
+    },
+    "DBUsername": {
+      "Default": "admin",
+      "NoEcho": "true",
+      "Description" : "The WordPress database admin account username",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "16",
+      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription" : "must begin with a letter and contain only alphanumeric characters."
+    },
+    "DBPassword": {
+      "Default": "admin",
+      "NoEcho": "true",
+      "Description" : "The WordPress database admin account password",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "41",
+      "AllowedPattern" : "[a-zA-Z0-9]*",
+      "ConstraintDescription" : "must contain only alphanumeric characters."
+    },
+    "DBRootPassword": {
+      "Default": "admin",
+      "NoEcho": "true",
+      "Description" : "Root password for MySQL",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "41",
+      "AllowedPattern" : "[a-zA-Z0-9]*",
+      "ConstraintDescription" : "must contain only alphanumeric characters."
+    },
+    "ImageId" : {
+        "Description" : "Image for instance to boot (should have heat-cfntools installed)",
+        "Type" : "String"
+    }
+  },
+
+  "Resources" : {
+    "WebServer" : {
+      "Type" : "AWS::EC2::Instance",
+      "Metadata" : {
+        "AWS::CloudFormation::Init" : {
+          "config" : {
+            "services" : {
+              "sysvinit" : {
+                "mysql"    : { "enabled" : "true", "ensureRunning" : "true" },
+                "apache2"  : { "enabled" : "true", "ensureRunning" : "true" }
+              }
+            }
+          }
+        }
+      },
+      "Properties" : {
+        "SecurityGroups" : [ { "Ref" : "InstanceSecurityGroup" } ],
+        "ImageId" : "UbuntuQuantalServer64bit_heat-cfntools",
+        "InstanceType" : { "Ref" : "InstanceType" },
+        "KeyName" : { "Ref" : "KeyName" },
+        "UserData"       : { "Fn::Base64" : { "Fn::Join" : ["", [
+          "#!/bin/bash -v\n",
+          "apt-get -y update\n",
+          "apt-get -y install apache2\n",
+          "apt-get -y install wordpress\n",
+          "echo mysql-server mysql-server/root_password select ", { "Ref" : "DBPassword" }, " | debconf-set-selections\n",
+          "echo mysql-server mysql-server/root_password_again select ", { "Ref" : "DBPassword" }, " | debconf-set-selections\n",
+          "apt-get -y install mysql-server\n",
+          "cat > /etc/apache2/conf.d/wordpress.conf <<EOF\n",
+          "Alias /wordpress /usr/share/wordpress\n",
+          "<Directory /usr/share/wordpress>\n",
+          "  AllowOverride Options\n",
+          "</Directory>\n",
+          "EOF\n",
+          "cfn-init\n",
+          "gzip -d /usr/share/doc/wordpress/examples/setup-mysql.gz\n",
+          "bash /usr/share/doc/wordpress/examples/setup-mysql -n ", { "Ref" : "DBName" }, " 127.0.0.1\n",
+          "mv /etc/wordpress/config-127.0.0.1.php /etc/wordpress/config-`curl http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null`.php\n",
+          "service apache2 restart\n"
+        ]]}}
+      }
+    },
+    "InstanceSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable access via port 22 and 80",
+        "SecurityGroupIngress" : [
+          {
+            "IpProtocol" : "tcp",
+            "FromPort" : "22",
+            "ToPort" : "22",
+            "CidrIp" : "0.0.0.0/0"
+          },
+          {
+            "IpProtocol" : "tcp",
+            "FromPort" : "80",
+            "ToPort" : "80",
+            "CidrIp" : "0.0.0.0/0"
+          }
+        ]
+      }
+    }
+  },
+
+  "Outputs" : {
+    "InstanceId" : {
+      "Description" : "InstanceId of the newly created instance",
+      "Value" : { "Ref" : "WebServer" }
+    },
+    "PublicIP" : {
+      "Description" : "Public IP address of the newly created instance (this is probably the private ip sadly)",
+      "Value" : { "Fn::GetAtt" : [ "WebServer", "PublicIp" ] }
+    },
+    "WebsiteURL" : {
+      "Value" : { "Fn::Join" : ["", ["http://", { "Fn::GetAtt" : [ "WebServer", "PublicIp" ]}, "/wordpress"]] },
+      "Description" : "URL for Wordpress wiki (this is probably the private ip sadly)"
+    }
+  }
+}
+

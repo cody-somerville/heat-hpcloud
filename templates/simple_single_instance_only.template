@@ -1,0 +1,60 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "This template creates an instance.",
+
+  "Parameters" : {
+    "KeyName" : {
+      "Description" : "Name of an existing KeyPair to enable SSH access to the instance",
+      "Type" : "String"
+    },
+    "InstanceType" : {
+      "Description" : "HPCloud Instance type",
+      "Type" : "String",
+      "Default" : "standard.small",
+      "AllowedValues" : [ "standard.xsmall", "standard.small", "standard.medium", "standard.large", "standard.xlarge", "standard.2xlarge" ],
+      "ConstraintDescription" : "must be a valid HPCloud instance type."
+    },
+    "ImageId" : {
+        "Description" : "Image for instance to boot",
+        "Type" : "String",
+        "Default" : "Ubuntu Quantal 12.10 Server 64-bit 20121017 (b)"
+    }
+  },
+
+  "Resources" : {
+    "Instance" : {
+      "Type" : "AWS::EC2::Instance",
+      "Properties" : {
+        "SecurityGroups" : [ { "Ref" : "InstanceSecurityGroup" } ],
+        "ImageId" : { "Ref" : "ImageId" },
+        "InstanceType" : { "Ref" : "InstanceType" },
+        "KeyName" : { "Ref" : "KeyName" }
+      }
+    },
+    "InstanceSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable SSH access via port 22",
+        "SecurityGroupIngress" : [ {
+          "IpProtocol" : "tcp",
+          "FromPort" : "22",
+          "ToPort" : "22",
+          "CidrIp" : "0.0.0.0/0"
+        }]
+      }
+    }
+  },
+
+  "Outputs" : {
+    "InstanceId" : {
+      "Description" : "InstanceId of the newly created instance",
+      "Value" : { "Ref" : "Instance" }
+    },
+    "IP" : {
+      "Description" : "IP address of the newly created instance",
+      "Value" : { "Fn::GetAtt" : [ "Instance", "PublicIp" ] }
+    }
+  }
+}
+
