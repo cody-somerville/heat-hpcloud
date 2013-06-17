@@ -48,29 +48,23 @@ echo " * Updating rabbitmq password..."
 sudo rabbitmqctl change_password guest "${RABBITMQ_PASSWORD}"
 
 echo " * Downloading heat..."
-git clone --quiet git://github.com/openstack/heat.git
+if [ -d heat/.git ] ; then
+  pushd heat
+  git stash
+  git pull
+  popd
+else
+  git clone --quiet git://github.com/openstack/heat.git
+fi
 cd heat
 echo " * Installing additional python dependencies..."
-sudo pip install --quiet -r tools/pip-requires
+sudo pip install --quiet -r requirements.txt
 echo " * Installing heat package in 'developer mode'..."
 sudo python setup.py develop --quiet
 sudo pip install --quiet python-heatclient
 
 echo " * Patching heat to run against HP Cloud..."
 git apply << EOF
-diff --git a/heat/common/auth_password.py b/heat/common/auth_password.py
-index bcc9799..0d354ca 100644
---- a/heat/common/auth_password.py
-+++ b/heat/common/auth_password.py
-@@ -74,7 +74,7 @@ class KeystonePasswordAuthProtocol(object):
-         tenant_id = token_info['token']['tenant']['id']
-         tenant_name = token_info['token']['tenant']['name']
-         user_id = token_info['user']['id']
--        user_name = token_info['user']['username']
-+        user_name = token_info['user']['name']
-         roles = ','.join(
-             [role['name'] for role in token_info['user']['roles']])
-         service_catalog = token_info['serviceCatalog']
 diff --git a/heat/engine/resources/instance.py b/heat/engine/resources/instance.py
 index 883be60..8578e96 100644
 --- a/heat/engine/resources/instance.py
@@ -128,12 +122,13 @@ cat >> /etc/heat/heat-api.conf << EOF
 flavor = standalone
 EOF
 
+echo " * Creating log directory at '/var/log/heat/'..."
+sudo mkdir -p /var/log/heat/
+
 echo " * Setting up heat database..."
 sudo bin/heat-db-setup deb -r "${DATABASE_PASSWORD}"
 
-echo " * Creating log directory at '/var/log/heat/'..."
-sudo mkdir -p /var/log/heat/
-sudo chown `whoami` /var/log/heat
+sudo chown -R `whoami` /var/log/heat
 
 echo
 echo "Now starting heat in the background..."
