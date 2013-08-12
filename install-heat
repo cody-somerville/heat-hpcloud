@@ -65,21 +65,6 @@ sudo pip install --quiet python-heatclient
 
 echo " * Patching heat to run against HP Cloud..."
 git apply << EOF
-diff --git a/heat/engine/resources/instance.py b/heat/engine/resources/instance.py
-index 883be60..8578e96 100644
---- a/heat/engine/resources/instance.py
-+++ b/heat/engine/resources/instance.py
-@@ -114,6 +114,10 @@ class Instance(resource.Resource):
-     update_allowed_keys = ('Metadata',)
- 
-     _deferred_server_statuses = ['BUILD',
-+                                 'BUILD(scheduling)',
-+                                 'BUILD(networking)',
-+                                 'BUILD(block_device_mapping)',
-+                                 'BUILD(spawning)',
-                                  'HARD_REBOOT',
-                                  'PASSWORD',
-                                  'REBOOT',
 diff --git a/heat/engine/clients.py b/heat/engine/clients.py
 index 31f418a..021024a 100644
 --- a/heat/engine/clients.py
