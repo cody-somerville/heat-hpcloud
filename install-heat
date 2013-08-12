@@ -7,6 +7,23 @@ RABBITMQ_PASSWORD="notset"
 REGION="az-1.region-a.geo-1"
 AUTH_URL="https://region-a.geo-1.identity.hpcloudsvc.com:35357/v2.0/"
 
+if [ -e "localrc" ]
+then
+    echo " * Loading local configuration from 'localrc'..."
+    source localrc
+else
+    echo " * No localrc is detected... "
+fi
+
+echo " * Region will be set to '${REGION}'..."
+echo " * Auth URL will be set to '${AUTH_URL}'..."
+
+sleep 3
+
+echo
+echo "=== Installing Heat ==="
+echo
+
 echo " * Fetching necessary information..."
 PUBLIC_IP="$(curl http://169.254.169.254/latest/meta-data/public-ipv4 2> /dev/null)"
 
@@ -58,6 +75,8 @@ else
 fi
 cd heat
 echo " * Installing additional python dependencies..."
+#XXX: Work around 'TypeError: dist must be a Distribution instance'.
+sudo pip install --quiet requests==1.2.2
 sudo pip install --quiet -r requirements.txt
 echo " * Installing heat package in 'developer mode'..."
 sudo python setup.py develop --quiet
@@ -120,6 +139,10 @@ echo "Now starting heat in the background..."
 heat-engine &
 heat-api &
 echo
+echo "heat-engine pid: $(pidof -x heat-engine)"
+echo "heat-api pid: $(pidof -x heat-api)"
+echo "heat logs: /var/log/heat"
+echo
 echo "To take full advantage of heat, having an image with heat-cfntools is"
 echo "important. You can either create an image with it included and ask"
 echo "support to upload it for you OR more easily you can boot an instace,"
@@ -129,11 +152,12 @@ echo
 echo "Unfortunately, most heat templates will not work with hpcloud due"
 echo "to not having the instace flavours or images they expect. They can"
 echo "however be easily updated to work successfully. You can find some"
-echo "example templates that will work under template/"
+echo "example templates that will work under the templates directory."
 echo
 echo "To see what patches have been applied to make heat work with hpcloud,"
-echo "you can run 'git diff'."
+echo "you can run 'git diff' on the heat directory."
 echo
 echo "To access heat, export HEAT_URL=http://${PUBLIC_IP}:8004/v1/\${OS_TENANT_ID}"
+echo " -- \${OS_TENANT_ID} should be replaced with your tenant ID."
 echo "Newer versions of heat client also require: export OS_NO_CLIENT_AUTH=1"
 echo
