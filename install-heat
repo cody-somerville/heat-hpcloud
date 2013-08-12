@@ -66,10 +66,10 @@ sudo pip install --quiet python-heatclient
 echo " * Patching heat to run against HP Cloud..."
 git apply << EOF
 diff --git a/heat/engine/clients.py b/heat/engine/clients.py
-index 31f418a..021024a 100644
+index 85d0934..2e53265 100644
 --- a/heat/engine/clients.py
 +++ b/heat/engine/clients.py
-@@ -43,7 +43,10 @@ except ImportError:
+@@ -49,7 +49,10 @@ except ImportError:
  cloud_opts = [
      cfg.StrOpt('cloud_backend',
                 default=None,
@@ -81,14 +81,14 @@ index 31f418a..021024a 100644
  ]
  cfg.CONF.register_opts(cloud_opts)
  
-@@ -80,6 +83,7 @@ class OpenStackClients(object):
+@@ -96,6 +99,7 @@ class OpenStackClients(object):
+         args = {
              'project_id': con.tenant,
              'auth_url': con.auth_url,
++            'region': cfg.CONF.region,
              'service_type': service_type,
-+            'region_name': cfg.CONF.region,
-         }
- 
-         if con.password is not None:
+             'username': None,
+             'api_key': None
 EOF
 
 echo " * Installing heat configuration files into '/etc/heat/'..."
