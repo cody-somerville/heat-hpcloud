@@ -85,7 +85,7 @@ index 85d0934..2e53265 100644
          args = {
              'project_id': con.tenant,
              'auth_url': con.auth_url,
-+            'region': cfg.CONF.region,
++            'region_name': cfg.CONF.region,
              'service_type': service_type,
              'username': None,
              'api_key': None
@@ -126,12 +126,14 @@ echo "support to upload it for you OR more easily you can boot an instace,"
 echo "pip install heat-cfntools, and then create a snapshot from the running"
 echo "instance."
 echo
-echo "Unfortunately, the example heat templates will not work with hpcloud due"
+echo "Unfortunately, most heat templates will not work with hpcloud due"
 echo "to not having the instace flavours or images they expect. They can"
-echo "however be easily updated to work successfully."
+echo "however be easily updated to work successfully. You can find some"
+echo "example templates that will work under template/"
 echo
 echo "To see what patches have been applied to make heat work with hpcloud,"
 echo "you can run 'git diff'."
 echo
 echo "To access heat, export HEAT_URL=http://${PUBLIC_IP}:8004/v1/\${OS_TENANT_ID}"
+echo "Newer versions of heat client also require: export OS_NO_CLIENT_AUTH=1"
 echo
