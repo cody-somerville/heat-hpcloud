@@ -85,7 +85,7 @@ sudo pip install --quiet python-heatclient
 echo " * Patching heat to run against HP Cloud..."
 git apply << EOF
 diff --git a/heat/engine/clients.py b/heat/engine/clients.py
-index 85d0934..2e53265 100644
+index 85d0934..2d83150 100644
 --- a/heat/engine/clients.py
 +++ b/heat/engine/clients.py
 @@ -49,7 +49,10 @@ except ImportError:
@@ -100,14 +100,15 @@ index 85d0934..2e53265 100644
  ]
  cfg.CONF.register_opts(cloud_opts)
  
-@@ -96,6 +99,7 @@ class OpenStackClients(object):
-         args = {
-             'project_id': con.tenant,
-             'auth_url': con.auth_url,
-+            'region_name': cfg.CONF.region,
-             'service_type': service_type,
-             'username': None,
-             'api_key': None
+@@ -79,6 +82,8 @@ class OpenStackClients(object):
+             return self._keystone
+ 
+         self._keystone = hkc.KeystoneClient(self.context)
++        # Hack: This will make keystone return endpoints for the configured region.
++        self._keystone.client.auth_ref.service_catalog.region_name = cfg.CONF.region
+         return self._keystone
+ 
+     def url_for(self, **kwargs):
 EOF
 
 echo " * Installing heat configuration files into '/etc/heat/'..."
