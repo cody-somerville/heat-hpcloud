@@ -116,12 +116,12 @@ sudo cp -r etc/heat /etc/
 sudo chown -R `whoami` /etc/heat
 
 echo " * Updating heat configuration files..."
-sed -i "/^rpc_backend\b/ s/impl_qpid/impl_kombu/" /etc/heat/*
-sed -i "/^rpc_backend/a rabbit_password=${RABBITMQ_PASSWORD}" /etc/heat/*
+find /etc/heat -type f | xargs sed -i "/^rpc_backend\b/ s/impl_qpid/impl_kombu/"
+find /etc/heat -type f | xargs sed -i "/^rpc_backend/a rabbit_password=${RABBITMQ_PASSWORD}"
 sed -i "/^\[DEFAULT\]/a region=${REGION}" /etc/heat/heat-engine.conf
 sed -i "s/%ENCRYPTION_KEY%/`hexdump -n 16 -v -e '/1 "%02x"' /dev/random`/" /etc/heat/heat-engine.conf
 sed -i "/^heat_/ s#127.0.0.1#${PUBLIC_IP}#" /etc/heat/heat-engine.conf
-sed -i "s#auth_uri\b.*#auth_uri\=${AUTH_URL}#" /etc/heat/*
+find /etc/heat -type f | xargs sed -i "s#auth_uri\b.*#auth_uri\=${AUTH_URL}#"
 cat >> /etc/heat/heat-api.conf << EOF
 [paste_deploy]
 flavor = standalone
