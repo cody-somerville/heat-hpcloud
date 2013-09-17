@@ -106,7 +106,7 @@ index 85d0934..2d83150 100644
  
          self._keystone = hkc.KeystoneClient(self.context)
 +        # Hack: This will make keystone return endpoints for the configured region.
-+        self._keystone.client.auth_ref.service_catalog.region_name = cfg.CONF.region
++        self._keystone.client_v2.auth_ref.service_catalog.region_name = cfg.CONF.region
          return self._keystone
  
      def url_for(self, **kwargs):
@@ -127,7 +127,7 @@ heat_watch_server_url = http://${PUBLIC_IP}:8003
 region = ${REGION}
 
 [keystone_authtoken]
-auth_uri = https://region-a.geo-1.identity.hpcloudsvc.com:35357/v2.0/
+auth_uri = ${AUTH_URL}
 
 [paste_deploy]
 flavor = standalone
