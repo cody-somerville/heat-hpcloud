@@ -125,6 +125,9 @@ heat_metadata_server_url = http://${PUBLIC_IP}:8000
 heat_waitcondition_server_url = http://${PUBLIC_IP}:8000/v1/waitcondition
 heat_watch_server_url = http://${PUBLIC_IP}:8003
 region = ${REGION}
+sql_connection = mysql://heat:heat@localhost/heat
+verbose = True
+log_dir = /var/log/heat/
 
 [keystone_authtoken]
 auth_uri = ${AUTH_URL}
@@ -143,8 +146,8 @@ sudo chown -R `whoami` /var/log/heat
 
 echo
 echo "Now starting heat in the background..."
-heat-engine > /dev/null &
-heat-api > /dev/null &
+heat-engine &> /dev/null &
+heat-api &> /dev/null &
 echo
 echo "heat-engine pid: $(pidof -x heat-engine)"
 echo "heat-api pid: $(pidof -x heat-api)"
