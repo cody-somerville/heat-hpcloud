@@ -86,22 +86,22 @@ sudo pip install --quiet python-heatclient
 echo " * Patching heat to run against HP Cloud..."
 git apply << EOF
 diff --git a/heat/engine/clients.py b/heat/engine/clients.py
-index 85d0934..2d83150 100644
+index f633c24..a46bf26 100644
 --- a/heat/engine/clients.py
 +++ b/heat/engine/clients.py
-@@ -49,7 +49,10 @@ except ImportError:
+@@ -60,7 +60,10 @@ _default_backend = "heat.engine.clients.OpenStackClients"
  cloud_opts = [
      cfg.StrOpt('cloud_backend',
-                default=None,
--               help="Cloud module to use as a backend. Defaults to OpenStack.")
-+               help="Cloud module to use as a backend. Defaults to OpenStack."),
+                default=_default_backend,
+-               help="Fully qualified class name to use as a client backend.")
++               help="Fully qualified class name to use as a client backend."),
 +    cfg.StrOpt('region',
 +               default=None,
 +               help="Use only this region if specified.")
  ]
  cfg.CONF.register_opts(cloud_opts)
  
-@@ -79,6 +82,8 @@ class OpenStackClients(object):
+@@ -91,6 +94,8 @@ class OpenStackClients(object):
              return self._keystone
  
          self._keystone = hkc.KeystoneClient(self.context)
