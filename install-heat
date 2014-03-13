@@ -79,37 +79,27 @@ echo " * Installing additional python dependencies..."
 #XXX: Work around 'TypeError: dist must be a Distribution instance'.
 sudo pip install --quiet requests==1.2.2
 sudo pip install --quiet -r requirements.txt
+# XXX: test packages needed due to bug in plugin loading in heat
+sudo pip install --quiet -r test-requirements.txt
 echo " * Installing heat package in 'developer mode'..."
 sudo python setup.py develop --quiet
 sudo pip install --quiet python-heatclient
 
 echo " * Patching heat to run against HP Cloud..."
 git apply << EOF
-diff --git a/heat/engine/clients.py b/heat/engine/clients.py
-index f633c24..a46bf26 100644
---- a/heat/engine/clients.py
-+++ b/heat/engine/clients.py
-@@ -60,7 +60,10 @@ _default_backend = "heat.engine.clients.OpenStackClients"
- cloud_opts = [
-     cfg.StrOpt('cloud_backend',
-                default=_default_backend,
--               help="Fully qualified class name to use as a client backend.")
-+               help="Fully qualified class name to use as a client backend."),
-+    cfg.StrOpt('region',
-+               default=None,
-+               help="Use only this region if specified.")
- ]
- cfg.CONF.register_opts(cloud_opts)
- 
-@@ -91,6 +94,8 @@ class OpenStackClients(object):
-             return self._keystone
- 
-         self._keystone = hkc.KeystoneClient(self.context)
-+        # Hack: This will make keystone return endpoints for the configured region.
-+        self._keystone.client_v2.auth_ref.service_catalog.region_name = cfg.CONF.region
-         return self._keystone
+diff --git a/contrib/heat_keystoneclient_v2/heat_keystoneclient_v2/client.py b/contrib/heat_keystoneclient_v2/heat_keystoneclient_v2/client.py
+index 28de5d9..8382f14 100644
+--- a/contrib/heat_keystoneclient_v2/heat_keystoneclient_v2/client.py
++++ b/contrib/heat_keystoneclient_v2/heat_keystoneclient_v2/client.py
+@@ -195,6 +195,8 @@ class KeystoneClientV2(object):
+         self.client.users.update_enabled(user_id, True)
  
      def url_for(self, **kwargs):
++        default_region_name = cfg.CONF.region_name_for_services
++        kwargs.setdefault('region_name', default_region_name)
+         return self.client.service_catalog.url_for(**kwargs)
+ 
+     @property
 EOF
 
 echo " * Installing heat configuration files into '/etc/heat/'..."
@@ -124,10 +114,12 @@ auth_encryption_key = $(hexdump -n 16 -v -e '/1 "%02x"' /dev/random)
 heat_metadata_server_url = http://${PUBLIC_IP}:8000
 heat_waitcondition_server_url = http://${PUBLIC_IP}:8000/v1/waitcondition
 heat_watch_server_url = http://${PUBLIC_IP}:8003
-region = ${REGION}
+region_name_for_services = ${REGION}
 sql_connection = mysql://heat:heat@localhost/heat
-verbose = True
+debug = True
 log_dir = /var/log/heat/
+plugin_dirs = /home/ubuntu/heat-hpcloud/heat/contrib/heat_keystoneclient_v2
+keystone_backend = heat.engine.plugins.heat_keystoneclient_v2.client.KeystoneClientV2
 
 [keystone_authtoken]
 auth_uri = ${AUTH_URL}
